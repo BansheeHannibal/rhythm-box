@@ -1,0 +1,3084 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>RHYTHM BOX · 节奏盒子</title>
+    <style>
+      /* ============================================================
+   全局变量与基础重置
+   ============================================================ */
+      :root {
+        /* 深空蓝主色，取自参考图的插画星空背景 */
+        --bg: #0b1a33;
+        --bg-2: #081324;
+        --panel: #12233f;
+        --panel-2: #0e1b31;
+        --outline: #0a1526;
+        --ink: #f4f8ff;
+        --ink-dim: rgba(206, 224, 255, 0.6);
+        --line: rgba(150, 195, 255, 0.14);
+        --c-beats: #ff6b7f;
+        --c-effects: #ffd166;
+        --c-melody: #5ad1f0;
+        --c-voices: #a98bff;
+        --beat-dur: 0.545s;
+        --radius: 20px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      /* 星空画布：铺满视口，位于所有内容之下 */
+      .space {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          "Inter",
+          "PingFang SC",
+          "Microsoft YaHei",
+          system-ui,
+          -apple-system,
+          sans-serif;
+        overflow: hidden;
+        overscroll-behavior: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      /* 背景氛围光：随播放状态呼吸 */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: -20%;
+        /* 宇宙星云：以深空蓝为主，点缀青色与金色光雾，贴合图片的冷调星空 */
+        background:
+          radial-gradient(
+            46% 42% at 16% 8%,
+            rgba(70, 140, 255, 0.22),
+            transparent 62%
+          ),
+          radial-gradient(
+            40% 36% at 86% 14%,
+            rgba(90, 209, 240, 0.16),
+            transparent 62%
+          ),
+          radial-gradient(
+            56% 46% at 50% 108%,
+            rgba(60, 110, 220, 0.22),
+            transparent 66%
+          ),
+          radial-gradient(
+            30% 26% at 72% 58%,
+            rgba(255, 209, 102, 0.08),
+            transparent 60%
+          );
+        filter: blur(14px);
+        animation: breathe 9s ease-in-out infinite alternate;
+        pointer-events: none;
+        z-index: 0;
+      }
+      @keyframes breathe {
+        from {
+          opacity: 0.55;
+          transform: scale(1);
+        }
+        to {
+          opacity: 0.95;
+          transform: scale(1.05);
+        }
+      }
+
+      /* ============================================================
+   页面骨架
+   ============================================================ */
+      .app {
+        position: relative;
+        z-index: 1;
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+      }
+
+      /* ------------------ 顶栏 ------------------ */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px clamp(14px, 3vw, 32px);
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(
+          180deg,
+          rgba(15, 34, 62, 0.72),
+          rgba(9, 22, 42, 0.55)
+        );
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .brand__dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--c-beats);
+        box-shadow: 0 0 14px var(--c-beats);
+        animation: pulseDot var(--beat-dur) ease-out infinite;
+      }
+      @keyframes pulseDot {
+        0% {
+          transform: scale(1.5);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 0.65;
+        }
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: clamp(14px, 1.7vw, 18px);
+        letter-spacing: 0.3em;
+        font-weight: 900;
+        text-transform: uppercase;
+        color: #f7fbff;
+        text-shadow:
+          0 1px 0 var(--outline),
+          0 2px 8px rgba(0, 0, 0, 0.45);
+      }
+
+      .topbar__right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      /* 卡通描边按钮：深色勾边 + 柔和渐变 + 底部薄 3D 边，比糖果风更贴近参考插画 */
+      .btn {
+        appearance: none;
+        border: 2px solid var(--outline);
+        background: linear-gradient(180deg, #3a6aa8 0%, #2a5088 100%);
+        color: #f6fbff;
+        font-family: inherit;
+        font-size: 12.5px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        padding: 8px 16px;
+        border-radius: 14px;
+        cursor: pointer;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+        box-shadow:
+          0 3px 0 rgba(6, 14, 28, 0.6),
+          0 6px 14px -8px rgba(0, 0, 0, 0.8);
+        transition:
+          transform 0.12s ease,
+          filter 0.16s ease,
+          box-shadow 0.12s ease;
+      }
+      .btn:hover {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+      }
+      .btn:active {
+        transform: translateY(2px);
+        box-shadow:
+          0 1px 0 rgba(6, 14, 28, 0.6),
+          0 3px 8px -6px rgba(0, 0, 0, 0.7);
+      }
+      /* 强调按钮（暂停）：取自太阳的暖橙色 */
+      .btn--accent {
+        background: linear-gradient(180deg, #ff9a52 0%, #f2703c 100%);
+        border-color: var(--outline);
+        color: #fffaf3;
+        box-shadow:
+          0 3px 0 rgba(150, 60, 20, 0.7),
+          0 6px 16px -8px rgba(0, 0, 0, 0.8);
+      }
+      .btn--accent:hover {
+        filter: brightness(1.06);
+      }
+      .btn--accent:active {
+        box-shadow:
+          0 1px 0 rgba(150, 60, 20, 0.7),
+          0 3px 8px -6px rgba(0, 0, 0, 0.7);
+      }
+
+      /* BPM 控制：海军蓝玻璃胶囊 + 光泽滑块 */
+      .bpm {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(14, 32, 60, 0.5);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        color: var(--ink-dim);
+      }
+      .bpm output {
+        color: #7fd4ff;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        min-width: 26px;
+        text-shadow: 0 0 10px rgba(90, 200, 255, 0.6);
+      }
+      .bpm input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 88px;
+        height: 4px;
+        border-radius: 4px;
+        background: rgba(130, 180, 240, 0.28);
+        outline: none;
+      }
+      .bpm input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle at 34% 30%,
+          #ffffff,
+          #8ec6ff 55%,
+          #2f6fbe 100%
+        );
+        border: 2px solid #eaf4ff;
+        box-shadow:
+          0 2px 0 #1d4c86,
+          0 0 12px rgba(90, 180, 255, 0.8);
+        cursor: pointer;
+      }
+
+      /* ------------------ 舞台 ------------------ */
+      .stage {
+        position: relative;
+        min-height: 0;
+        padding: clamp(10px, 2vh, 26px) clamp(14px, 3vw, 32px);
+        overflow: hidden;
+      }
+
+      #viz {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      .dancers {
+        /* --band 为最高角色（太阳）的基准高度，其余角色按 --rel 比例缩小 */
+        --band: clamp(80px, 16vw, 320px);
+        position: relative;
+        z-index: 2;
+        height: 100%;
+        /* 改为按比例的弹性排布：大行星占位宽、小行星占位窄，天然紧凑 */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* 角色之间的间距，已收紧到很小 */
+        gap: clamp(0px, 0.22vw, 5px);
+      }
+
+      /* 单个角色槽位 */
+      .slot {
+        position: relative;
+        flex: 0 0 auto; /* 宽度由角色自身决定，实现按参考图比例的紧凑排布 */
+        height: var(--band);
+        display: flex;
+        align-items: flex-end; /* 所有角色脚底对齐同一条基线 */
+        justify-content: center;
+        border-radius: var(--radius);
+        border: 2px dashed transparent;
+        transition:
+          background 0.2s,
+          border-color 0.2s,
+          box-shadow 0.25s;
+      }
+      .slot--hover {
+        border-color: rgba(255, 255, 255, 0.45);
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow: inset 0 0 40px rgba(255, 255, 255, 0.06);
+      }
+      .slot--filled {
+        cursor: pointer;
+      }
+      .slot--filled:hover .dancer {
+        filter: brightness(1.22);
+      }
+
+      /* 小人容器：承接节拍跳动 */
+      /* 尺寸按 --rel 相对系数缩放：太阳最大，越小的行星显示越小，
+         与参考图中的真实大小比例保持一致；底部对齐便于共用同一基线 */
+      .dancer {
+        position: relative;
+        /* 宽度 = 高度 × 帧宽高比，贴合角色真实轮廓，避免左右多余留白 */
+        width: calc(var(--rel, 1) * var(--band) * var(--ar, 1));
+        height: calc(var(--rel, 1) * var(--band));
+        flex: 0 0 auto;
+        color: var(--c, #7b8cff);
+        transform-origin: 50% 100%;
+        transition: filter 0.2s;
+        will-change: transform;
+      }
+      .dancer__svg {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+        display: block;
+      }
+
+      /* 序列帧形象：横向精灵图，通过 background-position 逐帧切换 */
+      .sprite {
+        width: 100%;
+        height: 100%;
+        background-repeat: no-repeat;
+        /* 把整张横向图放大到 N 倍宽度，保证单帧正好占满容器 */
+        background-size: calc(var(--frames, 1) * 100%) 100%;
+        background-position: 0% 50%;
+        image-rendering: -webkit-optimize-contrast;
+      }
+
+      /* 放置音效时的弹跳：使用独立 scale 属性，避免与每帧写入的 transform 冲突 */
+      .dancer--pop {
+        animation: dancerPop 0.45s cubic-bezier(0.16, 1.6, 0.4, 1);
+      }
+      @keyframes dancerPop {
+        0% {
+          scale: 0.82;
+        }
+        60% {
+          scale: 1.06;
+        }
+        100% {
+          scale: 1;
+        }
+      }
+      /* 行星光晕：环绕行星头，发声时点亮 */
+      .dancer__glow {
+        position: absolute;
+        left: 50%;
+        top: 29%;
+        width: 66%;
+        height: 45%;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        background: var(--c, #7b8cff);
+        opacity: 0;
+        filter: blur(24px);
+        transition: opacity 0.35s;
+        pointer-events: none;
+      }
+      .slot--active .dancer__glow {
+        opacity: 0.45;
+      }
+
+      /* 手臂摆动：时长由 BPM 控制 */
+      .arm {
+        transform-box: fill-box;
+      }
+      .arm--l {
+        transform-origin: 50% 8%;
+        animation: swingL var(--beat-dur) ease-in-out infinite alternate;
+      }
+      .arm--r {
+        transform-origin: 50% 8%;
+        animation: swingR var(--beat-dur) ease-in-out infinite alternate;
+      }
+      @keyframes swingL {
+        from {
+          transform: rotate(-16deg);
+        }
+        to {
+          transform: rotate(22deg);
+        }
+      }
+      @keyframes swingR {
+        from {
+          transform: rotate(16deg);
+        }
+        to {
+          transform: rotate(-22deg);
+        }
+      }
+
+      /* 暂停时冻结手臂与指示灯的动画 */
+      .app.is-paused .arm {
+        animation-play-state: paused;
+      }
+      .app.is-paused .brand__dot {
+        animation-play-state: paused;
+      }
+
+      /* 角色身上的音效徽章 */
+      .badge {
+        position: absolute;
+        left: 50%;
+        bottom: 2%;
+        transform: translate(-50%, 8px) scale(0.7);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px 4px 7px;
+        border-radius: 999px;
+        background: rgba(10, 10, 20, 0.86);
+        border: 1px solid var(--c, #fff);
+        box-shadow: 0 0 18px color-mix(in srgb, var(--c, #fff) 55%, transparent);
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          opacity 0.24s,
+          transform 0.24s;
+      }
+      .badge__dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--c, #fff);
+        box-shadow: 0 0 8px var(--c, #fff);
+      }
+      .slot--active .badge {
+        opacity: 1;
+        transform: translate(-50%, 0) scale(1);
+      }
+
+      /* 槽位空提示 */
+      .slot__hint {
+        position: absolute;
+        bottom: 4%;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        color: rgba(255, 255, 255, 0.16);
+        opacity: 0;
+        transition: opacity 0.25s;
+      }
+      .slot--hover .slot__hint {
+        opacity: 1;
+      }
+      /* 已放置音效的槽位不再显示"拖到此处"提示，避免与音效徽章重叠 */
+      .slot--filled .slot__hint {
+        display: none;
+      }
+
+      /* ------------------ 音效库 ------------------ */
+      /* 音效库：像一块圆角控制台面板，顶部圆角、两侧留边，贴合插画风格 */
+      .library {
+        margin: 0 clamp(8px, 1.4vw, 18px);
+        padding: 12px clamp(12px, 2.6vw, 26px) clamp(12px, 2vh, 18px);
+        border: 1px solid var(--line);
+        border-bottom: none;
+        border-radius: 22px 22px 0 0;
+        background: linear-gradient(
+          180deg,
+          var(--panel) 0%,
+          var(--panel-2) 100%
+        );
+        box-shadow: 0 -12px 34px -22px rgba(0, 0, 0, 0.9);
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px clamp(10px, 2vw, 26px);
+      }
+
+      .lib__group {
+        min-width: 0;
+      }
+
+      .lib__label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.26em;
+        color: var(--ink-dim);
+        margin-bottom: 8px;
+        text-transform: uppercase;
+      }
+      .lib__label::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--gc, #fff);
+        box-shadow: 0 0 10px var(--gc, #fff);
+      }
+
+      .lib__row {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        /* 横向滚动会同时裁掉纵向溢出，因此预留上下留白，
+           避免图标悬停上浮与光晕被容器裁切 */
+        padding: 8px 4px 16px;
+        margin-top: -6px;
+        scrollbar-width: none;
+      }
+      .lib__row::-webkit-scrollbar {
+        display: none;
+      }
+
+      /* 音效图标：卡通圆角卡片，用分类色做深色勾边与柔和渐变，呼应行星的描边画风 */
+      .chip {
+        flex: 0 0 auto;
+        width: 60px;
+        padding: 10px 4px 8px;
+        border-radius: 16px;
+        border: 2px solid color-mix(in srgb, var(--c) 55%, var(--outline));
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--c) 30%, var(--panel)),
+          var(--panel-2)
+        );
+        box-shadow:
+          inset 0 2px 0 rgba(255, 255, 255, 0.16),
+          0 4px 0 rgba(6, 14, 28, 0.55);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        cursor: grab;
+        touch-action: none;
+        transition:
+          transform 0.16s,
+          border-color 0.18s,
+          box-shadow 0.2s,
+          opacity 0.2s;
+      }
+      .chip:hover {
+        transform: translateY(-2px) scale(1.04);
+        border-color: color-mix(in srgb, var(--c) 80%, #ffffff);
+        box-shadow:
+          inset 0 2px 0 rgba(255, 255, 255, 0.24),
+          0 7px 16px -8px var(--c);
+      }
+      .chip:active {
+        cursor: grabbing;
+      }
+      .chip--used {
+        opacity: 0.22;
+        pointer-events: none;
+        filter: grayscale(1);
+      }
+
+      /* 波形装饰 */
+      .chip__art {
+        display: flex;
+        align-items: center;
+        gap: 2.5px;
+        height: 20px;
+      }
+      .chip__art i {
+        display: block;
+        width: 3px;
+        border-radius: 2px;
+        background: var(--c);
+        box-shadow: 0 0 8px color-mix(in srgb, var(--c) 70%, transparent);
+      }
+      .chip__art i:nth-child(1) {
+        height: 8px;
+      }
+      .chip__art i:nth-child(2) {
+        height: 18px;
+      }
+      .chip__art i:nth-child(3) {
+        height: 12px;
+      }
+      .chip__art i:nth-child(4) {
+        height: 16px;
+      }
+
+      .chip__name {
+        font-size: 8.5px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: rgba(255, 255, 255, 0.72);
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* 拖拽跟随的幽灵元素 */
+      .chip--ghost {
+        position: fixed;
+        z-index: 9999;
+        margin: 0;
+        pointer-events: none;
+        opacity: 0.94;
+        transform: translate(-50%, -50%) scale(1.12) rotate(-3deg);
+        box-shadow: 0 16px 40px -10px var(--c);
+        border-color: var(--c);
+        background: rgba(18, 18, 32, 0.95);
+      }
+
+      /* ------------------ 开场遮罩 ------------------ */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: radial-gradient(
+          circle at 50% 38%,
+          rgba(10, 26, 50, 0.7),
+          rgba(4, 10, 20, 0.95)
+        );
+        backdrop-filter: blur(4px) saturate(0.95);
+        transition:
+          opacity 0.45s ease,
+          visibility 0.45s;
+      }
+      .overlay--hide {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      /* 封套容器：包住卡片，便于在裁切角外侧叠加翻折与角标 */
+      .overlay__sleeve {
+        position: relative;
+        width: 100%;
+        max-width: 400px;
+        animation: cardIn 0.5s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+      }
+      @keyframes cardIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* 深蓝玻璃封套：右下角裁切，用 drop-shadow 让投影贴合裁切轮廓 */
+      .overlay__card {
+        position: relative;
+        width: 100%;
+        text-align: left;
+        padding: 34px 32px 30px;
+        border: 1px solid var(--line);
+        background: linear-gradient(
+          180deg,
+          rgba(16, 34, 62, 0.95),
+          rgba(9, 20, 40, 0.96)
+        );
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        clip-path: polygon(
+          0 0,
+          100% 0,
+          100% calc(100% - 26px),
+          calc(100% - 26px) 100%,
+          0 100%
+        );
+        filter: drop-shadow(0 24px 44px rgba(0, 0, 0, 0.6));
+      }
+      /* 顶部一道细色线，作为克制的手作细节 */
+      .overlay__card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 32px;
+        right: 32px;
+        height: 1px;
+        background: linear-gradient(90deg, var(--c-melody), transparent);
+        opacity: 0.75;
+      }
+      /* 内嵌细边框，与边缘留出偏移，同样切角，形成封套印刷内框 */
+      .overlay__card::after {
+        content: "";
+        position: absolute;
+        inset: 8px;
+        border: 1px solid rgba(150, 195, 255, 0.12);
+        clip-path: polygon(
+          0 0,
+          100% 0,
+          100% calc(100% - 18px),
+          calc(100% - 18px) 100%,
+          0 100%
+        );
+        pointer-events: none;
+      }
+
+      /* 右下角翻折「狗耳」：浅色三角代表折过去的纸背，折痕压深色细线并投内侧阴影 */
+      .overlay__fold {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        width: 26px;
+        height: 26px;
+        pointer-events: none;
+        background: linear-gradient(
+          to bottom right,
+          rgba(255, 255, 255, 0.18) 0%,
+          rgba(255, 255, 255, 0.05) 47%,
+          rgba(255, 255, 255, 0.5) 49.5%,
+          rgba(6, 12, 24, 0.85) 50%,
+          transparent 50%
+        );
+        filter: drop-shadow(-2px -2px 3px rgba(0, 0, 0, 0.55));
+      }
+
+      /* 切角处的角标：一段青色细线沿裁切方向斜置，像印刷定位线 */
+      .overlay__mark {
+        position: absolute;
+        right: 11px;
+        bottom: 11px;
+        width: 16px;
+        height: 2px;
+        background: var(--c-melody);
+        opacity: 0.6;
+        transform: rotate(-45deg);
+        transform-origin: right bottom;
+        border-radius: 2px;
+        pointer-events: none;
+      }
+
+      /* 大写字距的小标签 */
+      .overlay__kicker {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 14px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        color: var(--c-melody);
+      }
+      .overlay__kicker::before {
+        content: "";
+        width: 20px;
+        height: 1px;
+        background: var(--c-melody);
+      }
+
+      /* 立体贴纸标题：深蓝粗外框 + 浅蓝内描边 + 白蓝渐变填充 + 底部 3D 投影 */
+      .overlay__title {
+        position: relative;
+        display: inline-block;
+        z-index: 0;
+        margin: 0 0 14px;
+        font-size: 34px;
+        font-weight: 900;
+        line-height: 1.1;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+        background: linear-gradient(
+          180deg,
+          #ffffff 0%,
+          #eaf7ff 60%,
+          #cbe8ff 100%
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+        filter: drop-shadow(0 4px 0 #173a63)
+          drop-shadow(0 7px 8px rgba(0, 0, 0, 0.5));
+      }
+      .overlay__title::before,
+      .overlay__title::after {
+        content: attr(data-text);
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        color: transparent;
+        -webkit-text-fill-color: transparent;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      .overlay__title::before {
+        z-index: -2;
+        -webkit-text-stroke: 6px #3579c8;
+      }
+      .overlay__title::after {
+        z-index: -1;
+        -webkit-text-stroke: 2.5px #dff2ff;
+      }
+
+      .overlay__sub {
+        margin: 0 0 22px;
+        font-size: 13.5px;
+        line-height: 1.8;
+        color: var(--ink-dim);
+      }
+
+      /* 规则列表：短标签 + 说明，用细分隔线组织 */
+      .overlay__rules {
+        margin: 0 0 26px;
+        padding: 0;
+        list-style: none;
+        border-top: 1px solid rgba(150, 195, 255, 0.12);
+      }
+      .overlay__rules li {
+        display: flex;
+        gap: 14px;
+        align-items: baseline;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(150, 195, 255, 0.12);
+        font-size: 12.5px;
+        line-height: 1.5;
+        color: rgba(214, 231, 255, 0.62);
+      }
+      .overlay__rules b {
+        flex: 0 0 40px;
+        font-weight: 600;
+        color: var(--ink);
+      }
+
+      /* 糖果质感胶囊按钮：白圈边 + 上亮下暗渐变 + 底部实心投影 + 圆形图标 */
+      .overlay__btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        padding: 12px 20px;
+        border: 3px solid #fff3ec;
+        border-radius: 999px;
+        font-family: inherit;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        color: #ffffff;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.28);
+        background: linear-gradient(
+          180deg,
+          #ff9aa6 0%,
+          #ff5c74 52%,
+          #e7314f 100%
+        );
+        box-shadow:
+          0 5px 0 #b3213f,
+          0 12px 18px -6px rgba(0, 0, 0, 0.55),
+          inset 0 2px 2px rgba(255, 255, 255, 0.55),
+          inset 0 -6px 10px rgba(0, 0, 0, 0.18);
+        transition:
+          transform 0.12s ease,
+          box-shadow 0.12s ease;
+      }
+      .overlay__btn:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          0 6px 0 #b3213f,
+          0 16px 22px -6px rgba(0, 0, 0, 0.55),
+          inset 0 2px 2px rgba(255, 255, 255, 0.6),
+          inset 0 -6px 10px rgba(0, 0, 0, 0.18);
+      }
+      .overlay__btn:active {
+        transform: translateY(3px);
+        box-shadow:
+          0 2px 0 #b3213f,
+          0 6px 12px -6px rgba(0, 0, 0, 0.5),
+          inset 0 2px 2px rgba(255, 255, 255, 0.5);
+      }
+      .overlay__btn-ico {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+        flex: 0 0 auto;
+      }
+      .overlay__btn-ico svg {
+        width: 14px;
+        height: 14px;
+        fill: #e7314f;
+        transform: translateX(1px);
+      }
+
+      /* ------------------ 卡通插画风：覆盖旧封套 / 贴纸 / 糖果遮罩 ------------------ */
+      /* 不再用卡片遮住舞台：让真实行星直接露出，仅上下两端压暗遮盖顶栏与音效库 */
+      .overlay {
+        place-items: start center;
+        padding-top: clamp(28px, 5.5vh, 60px);
+        background: linear-gradient(
+          180deg,
+          rgba(6, 14, 26, 1) 0px,
+          rgba(6, 14, 26, 1) 80px,
+          rgba(6, 14, 26, 0.12) 190px,
+          rgba(6, 14, 26, 0.08) calc(100% - 220px),
+          rgba(6, 14, 26, 1) calc(100% - 120px),
+          rgba(6, 14, 26, 1) 100%
+        );
+        backdrop-filter: none;
+      }
+      .overlay__sleeve {
+        max-width: 760px;
+      }
+      /* 内容块完全透明，只作为文字与按钮的容器 */
+      .overlay__card {
+        text-align: center;
+        padding: 0;
+        border: none;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+        clip-path: none;
+        filter: none;
+      }
+      /* 去掉顶部色线与内嵌印刷框 */
+      .overlay__card::before,
+      .overlay__card::after {
+        content: none;
+      }
+      /* 不再需要翻折狗耳与裁切角角标 */
+      .overlay__fold,
+      .overlay__mark {
+        display: none;
+      }
+      /* 小标签改为金色圆角徽标 */
+      .overlay__kicker {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 0 14px;
+        padding: 5px 12px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: var(--c-effects);
+        background: rgba(255, 209, 102, 0.1);
+        border: 1px solid rgba(255, 209, 102, 0.3);
+        border-radius: 999px;
+      }
+      .overlay__kicker::before {
+        content: none;
+      }
+      /* 标题改为白色粗体 + 深色描边，取消贴纸多层描边与渐变裁切 */
+      .overlay__title {
+        display: block;
+        margin: 0 0 14px;
+        font-size: clamp(30px, 4.4vw, 46px);
+        font-weight: 900;
+        line-height: 1.2;
+        letter-spacing: 0.06em;
+        white-space: normal;
+        color: #f7fbff;
+        background: none;
+        -webkit-background-clip: border-box;
+        background-clip: border-box;
+        -webkit-text-fill-color: currentColor;
+        filter: none;
+        text-shadow:
+          0 2px 0 var(--outline),
+          0 3px 0 var(--outline),
+          0 8px 16px rgba(0, 0, 0, 0.5);
+      }
+      .overlay__title::before,
+      .overlay__title::after {
+        content: none;
+      }
+      .overlay__sub {
+        margin: 0 auto 20px;
+        max-width: 560px;
+        font-size: 14.5px;
+        line-height: 1.8;
+        color: rgba(214, 231, 255, 0.72);
+      }
+      /* 规则改为一行行圆角小卡片 */
+      .overlay__rules {
+        display: grid;
+        gap: 8px;
+        margin: 0 0 24px;
+        padding: 0;
+        border-top: none;
+      }
+      .overlay__rules li {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        border: 1px solid rgba(160, 200, 255, 0.1);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.04);
+        font-size: 12.5px;
+        line-height: 1.5;
+        color: rgba(214, 231, 255, 0.68);
+      }
+      .overlay__rules b {
+        flex: 0 0 40px;
+        font-weight: 800;
+        color: var(--c-effects);
+      }
+      /* 主按钮改为橙色卡通描边按钮，取消糖果白圈与厚投影 */
+      .overlay__btn {
+        display: inline-flex;
+        width: auto;
+        min-width: 220px;
+        margin: 0 auto;
+        padding: 13px 28px;
+        border: 2px solid var(--outline);
+        border-radius: 18px;
+        font-size: 16px;
+        letter-spacing: 0.08em;
+        color: #fffaf3;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+        background: linear-gradient(180deg, #ff9a52 0%, #f2703c 100%);
+        box-shadow:
+          0 4px 0 rgba(150, 60, 20, 0.7),
+          0 12px 22px -10px rgba(0, 0, 0, 0.8);
+      }
+      .overlay__btn:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.06);
+        box-shadow:
+          0 5px 0 rgba(150, 60, 20, 0.7),
+          0 14px 24px -10px rgba(0, 0, 0, 0.8);
+      }
+      .overlay__btn:active {
+        transform: translateY(3px);
+        box-shadow:
+          0 1px 0 rgba(150, 60, 20, 0.7),
+          0 6px 12px -8px rgba(0, 0, 0, 0.7);
+      }
+      .overlay__btn-ico {
+        background: rgba(255, 255, 255, 0.9);
+      }
+      .overlay__btn-ico svg {
+        fill: #c14a1f;
+      }
+
+      /* ------------------ 响应式 ------------------ */
+      @media (max-width: 860px) {
+        .library {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        /* 窄屏时基准尺寸缩小并允许换行，避免 11 个角色挤在一行溢出 */
+        .dancers {
+          --band: clamp(56px, 14vw, 130px);
+          flex-wrap: wrap;
+          align-content: center;
+          gap: 8px 6px;
+        }
+      }
+      @media (max-width: 560px) {
+        .topbar {
+          padding: 10px 12px;
+          gap: 8px;
+        }
+        .brand h1 {
+          letter-spacing: 0.18em;
+        }
+        .btn {
+          padding: 7px 11px;
+          font-size: 11px;
+        }
+        .bpm {
+          display: none;
+        }
+        .dancers {
+          --band: clamp(44px, 16vw, 84px);
+          flex-wrap: wrap;
+          align-content: center;
+          gap: 6px 4px;
+        }
+        .badge {
+          font-size: 8.5px;
+          padding: 3px 8px 3px 5px;
+        }
+        .library {
+          gap: 8px;
+          padding: 8px 12px 10px;
+        }
+        .chip {
+          width: 50px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 宇宙星空背景 -->
+    <canvas class="space" id="space"></canvas>
+
+    <div class="app" id="app">
+      <!-- 顶栏 -->
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__dot"></span>
+          <h1>Rhythm Box</h1>
+        </div>
+        <div class="topbar__right">
+          <div class="bpm">
+            <span>BPM</span>
+            <input
+              id="bpmRange"
+              type="range"
+              min="80"
+              max="140"
+              step="1"
+              value="110"
+            />
+            <output id="bpmValue">110</output>
+          </div>
+          <button class="btn" id="btnRandom">随机编排</button>
+          <button class="btn" id="btnClear">清空</button>
+          <button class="btn btn--accent" id="btnPlay">暂停</button>
+        </div>
+      </header>
+
+      <!-- 舞台 -->
+      <main class="stage">
+        <canvas id="viz"></canvas>
+        <div class="dancers" id="dancers"></div>
+      </main>
+
+      <!-- 音效库 -->
+      <section class="library" id="library"></section>
+    </div>
+
+    <!-- 开场遮罩 -->
+    <div class="overlay" id="overlay">
+      <div class="overlay__sleeve">
+        <div class="overlay__card">
+          <h2 class="overlay__title">宇宙节奏盒子</h2>
+          <p class="overlay__sub">
+            十一条声部各就各位。把音效拖到行星身上发声，点击可移除，拖动 BPM
+            调速。
+          </p>
+          <button class="overlay__btn" id="btnStart">
+            <span class="overlay__btn-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+            </span>
+            <span>开始演奏</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      "use strict";
+
+      /* ============================================================
+   一、音乐数据层
+   ------------------------------------------------------------
+   说明：
+   1. 全部音效均由 Web Audio API 实时合成，不依赖任何外部音频文件。
+   2. 每个音效由 16 分音符网格（0~15 步）上的事件组成。
+   3. 事件结构 { s: 步号, i: 乐器标识, note: MIDI 音高, dur: 时长 }
+   ============================================================ */
+
+      /** 常用音高（MIDI 编号）对照表，C4 = 60 */
+      var NT = {
+        A2: 45,
+        C3: 48,
+        D3: 50,
+        E3: 52,
+        F3: 53,
+        G3: 55,
+        A3: 57,
+        B3: 59,
+        C4: 60,
+        D4: 62,
+        Ds4: 63,
+        E4: 64,
+        F4: 65,
+        Fs4: 66,
+        G4: 67,
+        Gs4: 68,
+        A4: 69,
+        B4: 71,
+        C5: 72,
+      };
+
+      /** 事件构造辅助函数，避免大量重复书写对象字面量 */
+      function ev(s, i, extra) {
+        var o = { s: s, i: i };
+        if (extra) {
+          for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) o[k] = extra[k];
+          }
+        }
+        return o;
+      }
+
+      /**
+       * 音效总表：4 大类 × 5 个 = 20 个音效
+       * cat   ：分类（beats / effects / melody / voices）
+       * name  ：显示名
+       * base  ：分类主色
+       */
+      var SOUNDS = [
+        /* ---------------- 鼓点 BEATS ---------------- */
+        {
+          id: "b-nova",
+          cat: "beats",
+          name: "NOVA",
+          events: [
+            ev(0, "kick"),
+            ev(4, "clap"),
+            ev(8, "kick"),
+            ev(12, "clap"),
+            ev(2, "hat"),
+            ev(6, "hat", { open: true }),
+            ev(10, "hat"),
+            ev(14, "hat", { open: true }),
+          ],
+        },
+        {
+          id: "b-dust",
+          cat: "beats",
+          name: "DUST",
+          events: [
+            ev(0, "kick"),
+            ev(6, "kick"),
+            ev(10, "kick"),
+            ev(4, "snare"),
+            ev(12, "snare"),
+            ev(2, "hat"),
+            ev(3, "hat"),
+            ev(6, "hat"),
+            ev(7, "hat"),
+            ev(10, "hat"),
+            ev(11, "hat"),
+            ev(14, "hat"),
+            ev(15, "hat"),
+          ],
+        },
+        {
+          id: "b-shatter",
+          cat: "beats",
+          name: "SHATTER",
+          events: [
+            ev(0, "kick"),
+            ev(3, "kick"),
+            ev(8, "kick"),
+            ev(11, "kick"),
+            ev(4, "snare"),
+            ev(12, "snare"),
+            ev(14, "snare", { vel: 0.55 }),
+            ev(0, "hat"),
+            ev(2, "hat"),
+            ev(4, "hat"),
+            ev(6, "hat"),
+            ev(8, "hat"),
+            ev(10, "hat"),
+            ev(12, "hat"),
+            ev(14, "hat"),
+          ],
+        },
+        {
+          id: "b-void",
+          cat: "beats",
+          name: "VOID",
+          events: [
+            ev(0, "kick"),
+            ev(7, "kick"),
+            ev(10, "kick"),
+            ev(8, "clap"),
+            ev(0, "hat"),
+            ev(1, "hat"),
+            ev(2, "hat"),
+            ev(3, "hat"),
+            ev(4, "hat"),
+            ev(5, "hat"),
+            ev(6, "hat"),
+            ev(7, "hat"),
+            ev(8, "hat"),
+            ev(9, "hat"),
+            ev(10, "hat"),
+            ev(11, "hat"),
+            ev(12, "hat"),
+            ev(13, "hat"),
+            ev(14, "hat"),
+            ev(15, "hat"),
+          ],
+        },
+        {
+          id: "b-pulse",
+          cat: "beats",
+          name: "PULSE",
+          events: [
+            ev(0, "kick"),
+            ev(4, "kick"),
+            ev(8, "kick"),
+            ev(12, "kick"),
+            ev(2, "hat"),
+            ev(6, "hat"),
+            ev(10, "hat"),
+            ev(14, "hat"),
+            ev(15, "tom", { note: 45 }),
+          ],
+        },
+
+        /* ---------------- 音效 EFFECTS ---------------- */
+        {
+          id: "e-riser",
+          cat: "effects",
+          name: "RISER",
+          events: [ev(0, "riser", { dur: 1.25, vel: 0.85 })],
+        },
+        {
+          id: "e-laser",
+          cat: "effects",
+          name: "LASER",
+          events: [ev(4, "laser"), ev(12, "laser", { vel: 0.7 })],
+        },
+        {
+          id: "e-bell",
+          cat: "effects",
+          name: "BELL",
+          events: [ev(0, "bell", { note: 81 }), ev(8, "bell", { note: 76 })],
+        },
+        {
+          id: "e-clap",
+          cat: "effects",
+          name: "CLAP",
+          events: [ev(4, "clap"), ev(12, "clap"), ev(15, "clap", { vel: 0.5 })],
+        },
+        {
+          id: "e-spark",
+          cat: "effects",
+          name: "SPARK",
+          events: [
+            ev(2, "spark"),
+            ev(6, "spark"),
+            ev(10, "spark"),
+            ev(14, "spark"),
+          ],
+        },
+
+        /* ---------------- 旋律 MELODY ---------------- */
+        {
+          id: "m-midnight",
+          cat: "melody",
+          name: "MIDNIGHT",
+          events: [
+            ev(0, "lead", { note: NT.A3, dur: 0.24 }),
+            ev(2, "lead", { note: NT.C4, dur: 0.24 }),
+            ev(4, "lead", { note: NT.E4, dur: 0.24 }),
+            ev(6, "lead", { note: NT.A4, dur: 0.3 }),
+            ev(8, "lead", { note: NT.E4, dur: 0.24 }),
+            ev(10, "lead", { note: NT.C4, dur: 0.24 }),
+            ev(12, "lead", { note: NT.B3, dur: 0.24 }),
+            ev(14, "lead", { note: NT.G3, dur: 0.3 }),
+          ],
+        },
+        {
+          id: "m-sunrise",
+          cat: "melody",
+          name: "SUNRISE",
+          events: [
+            ev(0, "lead", { note: NT.C4, dur: 0.22 }),
+            ev(2, "lead", { note: NT.E4, dur: 0.22 }),
+            ev(4, "lead", { note: NT.G4, dur: 0.22 }),
+            ev(6, "lead", { note: NT.C5, dur: 0.3 }),
+            ev(8, "lead", { note: NT.B4, dur: 0.22 }),
+            ev(10, "lead", { note: NT.G4, dur: 0.22 }),
+            ev(12, "lead", { note: NT.E4, dur: 0.22 }),
+            ev(14, "lead", { note: NT.D4, dur: 0.3 }),
+          ],
+        },
+        {
+          id: "m-penta",
+          cat: "melody",
+          name: "PENTA",
+          events: [
+            ev(0, "lead", { note: NT.A3, dur: 0.26 }),
+            ev(3, "lead", { note: NT.C4, dur: 0.26 }),
+            ev(6, "lead", { note: NT.D4, dur: 0.26 }),
+            ev(8, "lead", { note: NT.E4, dur: 0.26 }),
+            ev(11, "lead", { note: NT.G4, dur: 0.26 }),
+            ev(14, "lead", { note: NT.E4, dur: 0.34 }),
+          ],
+        },
+        {
+          id: "m-ghost",
+          cat: "melody",
+          name: "GHOST",
+          events: [
+            ev(0, "lead", { note: NT.A4, dur: 0.2 }),
+            ev(2, "lead", { note: NT.Gs4, dur: 0.2 }),
+            ev(4, "lead", { note: NT.G4, dur: 0.2 }),
+            ev(6, "lead", { note: NT.Fs4, dur: 0.2 }),
+            ev(8, "lead", { note: NT.F4, dur: 0.2 }),
+            ev(10, "lead", { note: NT.E4, dur: 0.2 }),
+            ev(12, "lead", { note: NT.Ds4, dur: 0.2 }),
+            ev(14, "lead", { note: NT.D4, dur: 0.3 }),
+          ],
+        },
+        {
+          id: "m-glide",
+          cat: "melody",
+          name: "GLIDE",
+          events: [
+            ev(0, "bass", { note: NT.A2, dur: 0.55 }),
+            ev(8, "bass", { note: NT.F3, dur: 0.26 }),
+            ev(12, "bass", { note: NT.G3, dur: 0.26 }),
+          ],
+        },
+
+        /* ---------------- 人声 VOICES ---------------- */
+        {
+          id: "v-ahh",
+          cat: "voices",
+          name: "AHH",
+          events: [
+            ev(0, "voice", { note: NT.A3, dur: 0.6, vowel: "a" }),
+            ev(8, "voice", { note: NT.E4, dur: 0.5, vowel: "a" }),
+          ],
+        },
+        {
+          id: "v-ohh",
+          cat: "voices",
+          name: "OHH",
+          events: [
+            ev(2, "voice", { note: NT.C4, dur: 0.28, vowel: "o" }),
+            ev(6, "voice", { note: NT.A3, dur: 0.28, vowel: "o" }),
+            ev(10, "voice", { note: NT.C4, dur: 0.28, vowel: "o" }),
+            ev(14, "voice", { note: NT.A3, dur: 0.32, vowel: "o" }),
+          ],
+        },
+        {
+          id: "v-hey",
+          cat: "voices",
+          name: "HEY",
+          events: [
+            ev(4, "voice", { note: NT.A4, dur: 0.14, vowel: "e" }),
+            ev(12, "voice", { note: NT.A4, dur: 0.14, vowel: "e" }),
+          ],
+        },
+        {
+          id: "v-mmm",
+          cat: "voices",
+          name: "MMM",
+          events: [
+            ev(0, "voice", { note: NT.F3, dur: 0.7, vowel: "u" }),
+            ev(8, "voice", { note: NT.C4, dur: 0.55, vowel: "u" }),
+          ],
+        },
+        {
+          id: "v-yeah",
+          cat: "voices",
+          name: "YEAH",
+          events: [
+            ev(0, "voice", { note: NT.A3, dur: 0.22, vowel: "a" }),
+            ev(6, "voice", { note: NT.C4, dur: 0.2, vowel: "e" }),
+            ev(12, "voice", { note: NT.E4, dur: 0.4, vowel: "a" }),
+          ],
+        },
+      ];
+
+      /** 分类元信息：用于库分组标题与配色 */
+      var CATS = [
+        {
+          key: "beats",
+          label: "BEATS",
+          color: "var(--c-beats)",
+          raw: "#ff4d6d",
+        },
+        {
+          key: "effects",
+          label: "EFFECTS",
+          color: "var(--c-effects)",
+          raw: "#ffd166",
+        },
+        {
+          key: "melody",
+          label: "MELODY",
+          color: "var(--c-melody)",
+          raw: "#4cc9f0",
+        },
+        {
+          key: "voices",
+          label: "VOICES",
+          color: "var(--c-voices)",
+          raw: "#b388ff",
+        },
+      ];
+
+      /** 11 个角色各自的主色（太阳 + 月球 + 冥王星 + 八大行星，顺序与精灵图一致） */
+      var PALETTE = [
+        "#ffb347" /* 太阳 橙 */,
+        "#b9b9cc" /* 水星 灰 */,
+        "#ffc46b" /* 金星 橙黄 */,
+        "#4a9eff" /* 地球 蓝 */,
+        "#c9ccd6" /* 月球 灰白 */,
+        "#ff6b4a" /* 火星 红 */,
+        "#ffb45c" /* 木星 褐黄 */,
+        "#f0d9a0" /* 土星 米金 */,
+        "#6fe3e1" /* 天王星 青 */,
+        "#5b8cff" /* 海王星 深蓝 */,
+        "#b9a89a" /* 冥王星 褐灰 */,
+      ];
+
+      /* 各角色的相对大小系数（相对太阳 = 1.0）
+         取自参考图中每个角色裁切包围盒的高度比例，
+         让游戏里的行星大小与参考图保持一致：
+         太阳最大，木星/土星次之，月球/冥王星最小。
+         顺序必须与 PALETTE 一致 */
+      var REL = [
+        1.0 /* 太阳 */, 0.697 /* 水星 */, 0.66 /* 金星 */, 0.742 /* 地球 */,
+        0.569 /* 月球 */, 0.66 /* 火星 */, 0.912 /* 木星 */, 0.904 /* 土星 */,
+        0.64 /* 天王星 */, 0.72 /* 海王星 */, 0.572 /* 冥王星 */,
+      ];
+
+      /* 各角色精灵图的帧宽高比（帧宽 / 帧高），由生成脚本输出。
+         用于让 .dancer 的宽度贴合角色真实轮廓宽度，消除方形帧的左右留白，
+         从而像参考图一样紧凑排布。顺序必须与 PALETTE 一致 */
+      var AR = [
+        0.716 /* 太阳 */, 0.591 /* 水星 */, 0.594 /* 金星 */, 0.584 /* 地球 */,
+        0.556 /* 月球 */, 0.597 /* 火星 */, 0.644 /* 木星 */, 1.012 /* 土星 */,
+        0.672 /* 天王星 */, 0.6 /* 海王星 */, 0.6 /* 冥王星 */,
+      ];
+
+      /* ============================================================
+         角色形象配置（序列帧模式）
+         ------------------------------------------------------------
+         素材由参考图裁切生成：每个角色一张横向 6 帧精灵图，
+         单帧 240×320，透明背景，脚底对齐。
+         sources 顺序必须与 PALETTE 一致
+         （太阳 → 水星 → 金星 → 地球 → 月球 → 火星 → 木星 → 土星 → 天王星 → 海王星 → 冥王星）。
+         帧序号由音频时钟驱动：每拍走完一整轮动作，鼓点响起时正好回到第 1 帧。
+         enabled 置为 false 时回落到代码绘制的 SVG 行星小人。
+         ============================================================ */
+      var SPRITE = {
+        enabled: true,
+        frames: 6,
+        sources: [
+          "assets/planets/sun.png",
+          "assets/planets/mercury.png",
+          "assets/planets/venus.png",
+          "assets/planets/earth.png",
+          "assets/planets/moon.png",
+          "assets/planets/mars.png",
+          "assets/planets/jupiter.png",
+          "assets/planets/saturn.png",
+          "assets/planets/uranus.png",
+          "assets/planets/neptune.png",
+          "assets/planets/pluto.png",
+        ],
+      };
+
+      /* ============================================================
+         八大行星角色
+         ------------------------------------------------------------
+         造型参考：行星头 + 圆锥身体 + 小白手套 + 小短腿
+         light / dark 用于球体的明暗渐变，deco 为球面纹理片段，
+         纹理统一由 clipPath 裁剪在球体范围内，不会溢出球面。
+         bodyTop / bodyBottom 为圆锥身体的上下两段颜色。
+         ring 为真时额外绘制土星环。
+         注意：脸（表情）占用的区域约 y 38~55、x 42~78，
+         所有纹理都必须避开该区域，否则会被当成「鼻子/嘴巴」。
+         ============================================================ */
+      var PLANETS = [
+        {
+          name: "水星",
+          light: "#e6e6ee",
+          dark: "#5a5a6e",
+          bodyTop: "#7a7392",
+          bodyBottom: "#413a55",
+          deco:
+            '<circle cx="36" cy="24" r="6" fill="rgba(0,0,0,.13)"/>' +
+            '<circle cx="84" cy="30" r="5" fill="rgba(0,0,0,.11)"/>' +
+            '<circle cx="32" cy="64" r="6" fill="rgba(0,0,0,.1)"/>' +
+            '<circle cx="86" cy="68" r="4" fill="rgba(0,0,0,.09)"/>' +
+            '<circle cx="58" cy="13" r="3" fill="rgba(0,0,0,.08)"/>' +
+            '<circle cx="70" cy="76" r="4" fill="rgba(0,0,0,.07)"/>',
+        },
+        {
+          name: "金星",
+          light: "#fff0c4",
+          dark: "#c07a2a",
+          bodyTop: "#b07a6a",
+          bodyBottom: "#7d4a3e",
+          deco:
+            '<path d="M16 22 q44 -14 88 2 q-44 14 -88 -2Z" fill="rgba(255,255,255,.24)"/>' +
+            '<path d="M18 62 q42 -12 84 2 q-42 13 -84 -2Z" fill="rgba(255,255,255,.16)"/>' +
+            '<path d="M24 76 q36 -10 72 2 q-36 11 -72 -2Z" fill="rgba(255,255,255,.12)"/>',
+        },
+        {
+          name: "地球",
+          light: "#8fdcff",
+          dark: "#12508f",
+          bodyTop: "#4f9c4c",
+          bodyBottom: "#2c6b2c",
+          deco:
+            '<path d="M38 24 q14 -10 24 2 q7 10 -7 15 q-16 4 -19 -7Z" fill="#43c47a"/>' +
+            '<path d="M68 62 q16 -6 21 6 q-4 13 -19 11 q-11 -8 -2 -17Z" fill="#43c47a"/>' +
+            '<ellipse cx="60" cy="12" rx="24" ry="6" fill="rgba(255,255,255,.26)"/>' +
+            '<ellipse cx="52" cy="78" rx="18" ry="5" fill="rgba(255,255,255,.16)"/>',
+        },
+        {
+          name: "火星",
+          light: "#ffb08a",
+          dark: "#a8321c",
+          bodyTop: "#c7483a",
+          bodyBottom: "#8e2a1e",
+          deco:
+            '<ellipse cx="40" cy="68" rx="13" ry="8" fill="rgba(100,25,10,.2)"/>' +
+            '<ellipse cx="82" cy="26" rx="9" ry="6" fill="rgba(100,25,10,.16)"/>' +
+            '<ellipse cx="60" cy="12" rx="16" ry="5" fill="rgba(255,255,255,.24)"/>',
+        },
+        {
+          name: "木星",
+          light: "#ffe3b8",
+          dark: "#a86a35",
+          bodyTop: "#a5744a",
+          bodyBottom: "#6f4a29",
+          deco:
+            '<rect x="10" y="16" width="100" height="7" rx="3.5" fill="rgba(180,110,60,.35)"/>' +
+            '<rect x="10" y="58" width="100" height="8" rx="4" fill="rgba(255,242,220,.32)"/>' +
+            '<rect x="10" y="72" width="100" height="6" rx="3" fill="rgba(170,100,55,.3)"/>' +
+            '<ellipse cx="70" cy="76" rx="8" ry="5" fill="#d4543a"/>',
+        },
+        {
+          name: "土星",
+          light: "#fff4d4",
+          dark: "#b3904a",
+          bodyTop: "#b6915c",
+          bodyBottom: "#846238",
+          ring: true,
+          deco:
+            '<rect x="10" y="18" width="100" height="6" rx="3" fill="rgba(190,160,100,.3)"/>' +
+            '<rect x="10" y="60" width="100" height="7" rx="3.5" fill="rgba(190,160,100,.24)"/>' +
+            '<rect x="10" y="74" width="100" height="5" rx="2.5" fill="rgba(190,160,100,.18)"/>',
+        },
+        {
+          name: "天王星",
+          light: "#c2f8f4",
+          dark: "#2f8f9e",
+          bodyTop: "#45b6ba",
+          bodyBottom: "#21808a",
+          deco:
+            '<rect x="10" y="18" width="100" height="5" rx="2.5" fill="rgba(255,255,255,.24)"/>' +
+            '<rect x="10" y="62" width="100" height="4" rx="2" fill="rgba(255,255,255,.16)"/>',
+        },
+        {
+          name: "海王星",
+          light: "#9fc1ff",
+          dark: "#1a3580",
+          bodyTop: "#4470e2",
+          bodyBottom: "#1e3fa6",
+          deco:
+            '<rect x="10" y="14" width="100" height="5" rx="2.5" fill="rgba(255,255,255,.2)"/>' +
+            '<rect x="10" y="60" width="100" height="4" rx="2" fill="rgba(255,255,255,.12)"/>' +
+            '<ellipse cx="40" cy="72" rx="11" ry="6" fill="rgba(0,0,50,.24)"/>',
+        },
+      ];
+
+      /**
+       * 八大行星的体型系数
+       * 真实太阳系中行星体积差异极大，这里做成克制的视觉差：
+       * 水星最小、木星最大，让 8 个角色站在一起时有大小节奏，
+       * 但差异控制在 0.9~1.14 之间，避免小行星被细节淹没。
+       */
+      var SIZES = [0.9, 0.96, 1.0, 0.94, 1.14, 1.0, 1.02, 1.0];
+
+      /**
+       * 八大行星的体型系数
+       * 真实太阳系中行星体积差异极大，这里做成克制的视觉差：
+       * 水星最小、木星最大，让 8 个角色站在一起时有大小节奏。
+       * 上限控制在 1.05，保证放大后手套不会被 SVG 左右边界裁掉。
+       */
+      var SIZES = [0.95, 0.98, 1.0, 0.97, 1.05, 1.0, 1.02, 1.0];
+
+      /**
+       * 生成第 i 个行星角色的 SVG 标记
+       * 造型：行星头（球体）+ 圆锥身体 + 小白手套 + 小短腿
+       * @param {number} i 角色序号 0~7，越界时回落到第 0 个
+       * @returns {string} 可直接插入 DOM 的 SVG 字符串
+       */
+      function planetSVG(i) {
+        var p = PLANETS[i] || PLANETS[0];
+        var gid = "pg" + i; /* 球体径向渐变 id，必须全局唯一 */
+        var bid = "bd" + i; /* 身体线性渐变 id，必须全局唯一 */
+        var cid = "pc" + i; /* 球体裁剪路径 id，必须全局唯一 */
+        /* 体型系数，缺失或非法值时安全回落为 1，避免 NaN 导致整块图形消失 */
+        var rawSize = SIZES[i];
+        var k =
+          typeof rawSize === "number" && isFinite(rawSize) && rawSize > 0
+            ? rawSize
+            : 1;
+
+        /* 土星环：整圈画在头部之后（下层），只从球体两侧露出，
+           避免环带横穿表情看起来像戴了一副眼镜 */
+        var ringBack = p.ring
+          ? '<ellipse cx="60" cy="52" rx="54" ry="16" fill="none" stroke="rgba(240,215,160,.82)" stroke-width="8" transform="rotate(-14 60 52)"/>' +
+            '<ellipse cx="60" cy="52" rx="44" ry="13" fill="none" stroke="rgba(196,164,108,.5)" stroke-width="4.5" transform="rotate(-14 60 52)"/>'
+          : "";
+
+        /* 圆锥身体：上窄下宽，底部两角做圆角，避免生硬 */
+        var bodyPath =
+          "M47 76 L31 127 Q29 133 35 133 L85 133 Q91 133 89 127 L73 76 Z";
+
+        return (
+          '<svg class="dancer__svg" viewBox="0 0 120 160" aria-hidden="true">' +
+          "<defs>" +
+          '<radialGradient id="' +
+          gid +
+          '" cx="34%" cy="28%" r="78%">' +
+          '<stop offset="0%" stop-color="' +
+          p.light +
+          '"/>' +
+          '<stop offset="100%" stop-color="' +
+          p.dark +
+          '"/>' +
+          "</radialGradient>" +
+          /* 身体渐变：上方受光偏亮，下方沉入阴影 */
+          '<linearGradient id="' +
+          bid +
+          '" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" stop-color="' +
+          p.bodyTop +
+          '"/>' +
+          '<stop offset="100%" stop-color="' +
+          p.bodyBottom +
+          '"/>' +
+          "</linearGradient>" +
+          '<clipPath id="' +
+          cid +
+          '"><circle cx="60" cy="46" r="37"/></clipPath>' +
+          "</defs>" +
+          /* 以角色重心 (60,78) 为基准做等比缩放，大小变化不影响站位基准 */
+          '<g transform="translate(60 78) scale(' +
+          k +
+          ') translate(-60 -78)">' +
+          /* 土星环后半段：画在最底层，被球体与身体遮挡中间部分 */
+          ringBack +
+          /* 小短腿与小白鞋：先画，随后被圆锥身体压住上端 */
+          '<rect x="44" y="127" width="11" height="17" rx="5" fill="' +
+          p.bodyBottom +
+          '"/>' +
+          '<rect x="65" y="127" width="11" height="17" rx="5" fill="' +
+          p.bodyBottom +
+          '"/>' +
+          '<ellipse cx="49.5" cy="146" rx="9.5" ry="4.5" fill="#f4f4f8"/>' +
+          '<ellipse cx="70.5" cy="146" rx="9.5" ry="4.5" fill="#f4f4f8"/>' +
+          /* 小手：短手臂 + 白色手套，画在身体之前，自然「从身后伸出」 */
+          '<g class="arm arm--l">' +
+          '<rect x="16" y="86" width="24" height="12" rx="6" fill="' +
+          p.bodyBottom +
+          '"/>' +
+          '<rect x="3" y="80" width="19" height="18" rx="8" fill="#f7f7fb"/>' +
+          '<path d="M9 85.5 h7 M9 90.5 h7" stroke="rgba(0,0,0,.1)" stroke-width="1.3" stroke-linecap="round"/>' +
+          "</g>" +
+          '<g class="arm arm--r">' +
+          '<rect x="80" y="86" width="24" height="12" rx="6" fill="' +
+          p.bodyBottom +
+          '"/>' +
+          '<rect x="98" y="80" width="19" height="18" rx="8" fill="#f7f7fb"/>' +
+          '<path d="M104 85.5 h7 M104 90.5 h7" stroke="rgba(0,0,0,.1)" stroke-width="1.3" stroke-linecap="round"/>' +
+          "</g>" +
+          /* 圆锥身体 */
+          '<path d="' +
+          bodyPath +
+          '" fill="url(#' +
+          bid +
+          ')" stroke="rgba(0,0,0,.12)" stroke-width="1.4"/>' +
+          /* 行星球体（头） */
+          '<circle cx="60" cy="46" r="37" fill="url(#' +
+          gid +
+          ')"/>' +
+          /* 球面纹理 + 高光，统一裁剪在球体内部 */
+          '<g clip-path="url(#' +
+          cid +
+          ')">' +
+          p.deco +
+          '<ellipse cx="44" cy="25" rx="13" ry="8" fill="rgba(255,255,255,.22)" transform="rotate(-28 44 25)"/>' +
+          "</g>" +
+          /* 球体轮廓线，让头部与身体分界更清晰 */
+          '<circle cx="60" cy="46" r="37" fill="none" stroke="rgba(0,0,0,.14)" stroke-width="1.4"/>' +
+          /* 表情 */
+          '<ellipse cx="48.5" cy="46" rx="5.6" ry="6.4" fill="#fff"/>' +
+          '<ellipse cx="71.5" cy="46" rx="5.6" ry="6.4" fill="#fff"/>' +
+          '<circle cx="49.3" cy="46.8" r="2.7" fill="#0b0b16"/>' +
+          '<circle cx="72.3" cy="46.8" r="2.7" fill="#0b0b16"/>' +
+          '<circle cx="50.3" cy="45.6" r="1" fill="#fff"/>' +
+          '<circle cx="73.3" cy="45.6" r="1" fill="#fff"/>' +
+          '<ellipse cx="36" cy="57" rx="5.5" ry="3.4" fill="rgba(255,120,140,.3)"/>' +
+          '<ellipse cx="84" cy="57" rx="5.5" ry="3.4" fill="rgba(255,120,140,.3)"/>' +
+          "</g>" +
+          "</svg>"
+        );
+      }
+
+      /* ============================================================
+   二、音频引擎
+   ------------------------------------------------------------
+   采用经典的「前瞻调度」模式：
+   - setInterval 每 25ms 唤醒一次调度器
+   - 调度器把未来 150ms 内需要发声的步进提前排入音频时间轴
+   - 依靠 AudioContext 的高精度时钟保证节奏稳定，不受 JS 主线程抖动影响
+   ============================================================ */
+      var AudioEngine = {
+        ctx: null,
+        master: null,
+        comp: null,
+        analyser: null,
+        noise: null,
+
+        /** 当前速度（每分钟拍数），一步 = 16 分音符 */
+        bpm: 110,
+        /** 当前步进序号 0~15 */
+        step: 0,
+        /** 下一个步进的绝对音频时间 */
+        nextStepTime: 0,
+        /** 调度定时器句柄 */
+        timer: null,
+        /** 是否正在运行 */
+        running: false,
+        /** 是否已初始化 */
+        ready: false,
+
+        /** 单个 16 分音符的时长（秒） */
+        stepDuration: function () {
+          return 60 / this.bpm / 4;
+        },
+
+        /** 初始化音频上下文与总线 */
+        init: function () {
+          if (this.ready) return;
+          var AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) {
+            alert("当前浏览器不支持 Web Audio API，无法播放音乐。");
+            return;
+          }
+
+          this.ctx = new AC();
+
+          /* 总线链路：master -> 压缩器 -> 分析器 -> 扬声器 */
+          this.master = this.ctx.createGain();
+          this.master.gain.value = 0.9;
+
+          this.comp = this.ctx.createDynamicsCompressor();
+          this.comp.threshold.value = -14;
+          this.comp.knee.value = 8;
+          this.comp.ratio.value = 5;
+          this.comp.attack.value = 0.003;
+          this.comp.release.value = 0.22;
+
+          this.analyser = this.ctx.createAnalyser();
+          this.analyser.fftSize = 512;
+          this.analyser.smoothingTimeConstant = 0.82;
+
+          this.master.connect(this.comp);
+          this.comp.connect(this.analyser);
+          this.analyser.connect(this.ctx.destination);
+
+          this.noise = this._makeNoiseBuffer();
+          this.ready = true;
+        },
+
+        /**
+         * 预生成 2 秒白噪声缓冲区
+         * 多次复用同一 buffer 可以显著降低合成开销
+         */
+        _makeNoiseBuffer: function () {
+          var len = Math.floor(this.ctx.sampleRate * 2);
+          var buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+          var data = buf.getChannelData(0);
+          for (var i = 0; i < len; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+          return buf;
+        },
+
+        /** MIDI 音高转频率 */
+        mtof: function (m) {
+          return 440 * Math.pow(2, (m - 69) / 12);
+        },
+
+        /** 创建一个噪声源节点（已挂上缓冲区） */
+        _noiseSource: function () {
+          var n = this.ctx.createBufferSource();
+          n.buffer = this.noise;
+          n.loop = true;
+          return n;
+        },
+
+        /* -------------------- 乐器合成 -------------------- */
+
+        /** 底鼓：正弦波从 160Hz 快速下滑到 48Hz，制造打击下潜感 */
+        kick: function (t, vel) {
+          vel = vel == null ? 1 : vel;
+          var c = this.ctx;
+          var o = c.createOscillator();
+          var g = c.createGain();
+          o.type = "sine";
+          o.frequency.setValueAtTime(165, t);
+          o.frequency.exponentialRampToValueAtTime(48, t + 0.09);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.95 * vel, t + 0.008);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.33);
+          o.connect(g);
+          g.connect(this.master);
+          o.start(t);
+          o.stop(t + 0.36);
+        },
+
+        /** 军鼓：带通噪声 + 三角波主体，经典流行军鼓 */
+        snare: function (t, vel) {
+          vel = vel == null ? 1 : vel;
+          var c = this.ctx;
+
+          var n = this._noiseSource();
+          var bp = c.createBiquadFilter();
+          bp.type = "bandpass";
+          bp.frequency.value = 1900;
+          bp.Q.value = 0.75;
+          var hp = c.createBiquadFilter();
+          hp.type = "highpass";
+          hp.frequency.value = 620;
+          var ng = c.createGain();
+          ng.gain.setValueAtTime(0.0001, t);
+          ng.gain.exponentialRampToValueAtTime(0.52 * vel, t + 0.004);
+          ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
+          n.connect(bp);
+          bp.connect(hp);
+          hp.connect(ng);
+          ng.connect(this.master);
+          n.start(t);
+          n.stop(t + 0.19);
+
+          var o = c.createOscillator();
+          o.type = "triangle";
+          o.frequency.setValueAtTime(225, t);
+          o.frequency.exponentialRampToValueAtTime(150, t + 0.07);
+          var og = c.createGain();
+          og.gain.setValueAtTime(0.0001, t);
+          og.gain.exponentialRampToValueAtTime(0.2 * vel, t + 0.004);
+          og.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+          o.connect(og);
+          og.connect(this.master);
+          o.start(t);
+          o.stop(t + 0.12);
+        },
+
+        /** 踩镲：高通噪声，闭合 45ms / 开放 180ms */
+        hat: function (t, vel, open) {
+          vel = vel == null ? 1 : vel;
+          var c = this.ctx;
+          var d = open ? 0.19 : 0.05;
+          var n = this._noiseSource();
+          var hp = c.createBiquadFilter();
+          hp.type = "highpass";
+          hp.frequency.value = 7800;
+          var g = c.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.15 * vel, t + 0.002);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+          n.connect(hp);
+          hp.connect(g);
+          g.connect(this.master);
+          n.start(t);
+          n.stop(t + d + 0.03);
+        },
+
+        /** 拍手：连续三次极短噪声爆发，模拟多人拍手的散开感 */
+        clap: function (t, vel) {
+          vel = vel == null ? 1 : vel;
+          var c = this.ctx;
+          for (var i = 0; i < 3; i++) {
+            var t0 = t + i * 0.011;
+            var n = this._noiseSource();
+            var bp = c.createBiquadFilter();
+            bp.type = "bandpass";
+            bp.frequency.value = 1250;
+            bp.Q.value = 1.3;
+            var g = c.createGain();
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(0.3 * vel, t0 + 0.003);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.085);
+            n.connect(bp);
+            bp.connect(g);
+            g.connect(this.master);
+            n.start(t0);
+            n.stop(t0 + 0.1);
+          }
+        },
+
+        /** 嗵鼓：音高可调的短促下潜音 */
+        tom: function (t, note, vel) {
+          vel = vel == null ? 1 : vel;
+          var c = this.ctx;
+          var f = this.mtof(note || 45) * 2.2;
+          var o = c.createOscillator();
+          var g = c.createGain();
+          o.type = "sine";
+          o.frequency.setValueAtTime(f, t);
+          o.frequency.exponentialRampToValueAtTime(f * 0.45, t + 0.16);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.5 * vel, t + 0.006);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+          o.connect(g);
+          g.connect(this.master);
+          o.start(t);
+          o.stop(t + 0.3);
+        },
+
+        /** 贝斯：锯齿波 + 低通包络扫描，低频扎实 */
+        bass: function (t, note, dur, vel) {
+          vel = vel == null ? 1 : vel;
+          dur = dur || 0.25;
+          var c = this.ctx;
+          var f = this.mtof(note);
+          var o = c.createOscillator();
+          o.type = "sawtooth";
+          o.frequency.value = f;
+
+          var sub = c.createOscillator();
+          sub.type = "sine";
+          sub.frequency.value = f / 2;
+
+          var lp = c.createBiquadFilter();
+          lp.type = "lowpass";
+          lp.Q.value = 7;
+          lp.frequency.setValueAtTime(Math.min(f * 7, 3000), t);
+          lp.frequency.exponentialRampToValueAtTime(
+            Math.max(f * 1.5, 90),
+            t + dur,
+          );
+
+          var g = c.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.3 * vel, t + 0.012);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+          o.connect(lp);
+          sub.connect(lp);
+          lp.connect(g);
+          g.connect(this.master);
+          o.start(t);
+          o.stop(t + dur + 0.04);
+          sub.start(t);
+          sub.stop(t + dur + 0.04);
+        },
+
+        /** 主旋律：方波 + 低通，带轻微起音衰减 */
+        lead: function (t, note, dur, vel) {
+          vel = vel == null ? 1 : vel;
+          dur = dur || 0.2;
+          var c = this.ctx;
+          var f = this.mtof(note);
+          var o = c.createOscillator();
+          o.type = "square";
+          o.frequency.value = f;
+
+          var o2 = c.createOscillator();
+          o2.type = "triangle";
+          o2.frequency.value = f * 2;
+          o2.detune.value = 6;
+
+          var lp = c.createBiquadFilter();
+          lp.type = "lowpass";
+          lp.frequency.setValueAtTime(Math.min(f * 5, 5200), t);
+          lp.frequency.exponentialRampToValueAtTime(
+            Math.max(f * 1.5, 500),
+            t + dur,
+          );
+          lp.Q.value = 2;
+
+          var g = c.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.12 * vel, t + 0.008);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+          o.connect(lp);
+          o2.connect(lp);
+          lp.connect(g);
+          g.connect(this.master);
+          o.start(t);
+          o.stop(t + dur + 0.05);
+          o2.start(t);
+          o2.stop(t + dur + 0.05);
+        },
+
+        /**
+         * 人声合成：锯齿波作为声带源，经过 3 组带通滤波器模拟共振峰（元音）
+         * vowel 支持 a / o / e / u / i
+         */
+        voice: function (t, note, dur, vowel, vel) {
+          vel = vel == null ? 1 : vel;
+          dur = dur || 0.35;
+          var c = this.ctx;
+
+          var formantMap = {
+            a: [800, 1150, 2900],
+            o: [450, 800, 2830],
+            e: [400, 1600, 2700],
+            u: [325, 700, 2530],
+            i: [300, 2200, 3000],
+          };
+          var formants = formantMap[vowel] || formantMap.a;
+
+          var f = this.mtof(note);
+
+          var src = c.createOscillator();
+          src.type = "sawtooth";
+          src.frequency.value = f;
+
+          /* 5.5Hz 颤音，让长音更有生命力 */
+          var lfo = c.createOscillator();
+          lfo.frequency.value = 5.5;
+          var lfoGain = c.createGain();
+          lfoGain.gain.value = f * 0.011;
+          lfo.connect(lfoGain);
+          lfoGain.connect(src.frequency);
+
+          /* 全局包络：快速起音 -> 保持 -> 平滑释放 */
+          var env = c.createGain();
+          env.gain.setValueAtTime(0.0001, t);
+          env.gain.exponentialRampToValueAtTime(0.42 * vel, t + 0.055);
+          env.gain.setValueAtTime(0.42 * vel, t + Math.max(dur * 0.72, 0.06));
+          env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+          env.connect(this.master);
+
+          /* 三组共振峰并联，各自带独立增益权重 */
+          for (var i = 0; i < formants.length; i++) {
+            var bp = c.createBiquadFilter();
+            bp.type = "bandpass";
+            bp.frequency.value = formants[i];
+            bp.Q.value = i === 0 ? 10 : 15;
+            var fg = c.createGain();
+            fg.gain.value = i === 0 ? 0.9 : 0.45;
+            src.connect(bp);
+            bp.connect(fg);
+            fg.connect(env);
+          }
+          /* 少量直通信号保留声带质感 */
+          var direct = c.createGain();
+          direct.gain.value = 0.12;
+          src.connect(direct);
+          direct.connect(env);
+
+          src.start(t);
+          src.stop(t + dur + 0.06);
+          lfo.start(t);
+          lfo.stop(t + dur + 0.06);
+        },
+
+        /** 上升音效：噪声 + 带通频率快速上扫 */
+        riser: function (t, dur, vel) {
+          vel = vel == null ? 1 : vel;
+          dur = dur || 0.8;
+          var c = this.ctx;
+          var n = this._noiseSource();
+          var bp = c.createBiquadFilter();
+          bp.type = "bandpass";
+          bp.Q.value = 3.2;
+          bp.frequency.setValueAtTime(380, t);
+          bp.frequency.exponentialRampToValueAtTime(7200, t + dur);
+          var g = c.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.2 * vel, t + dur * 0.88);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+          n.connect(bp);
+          bp.connect(g);
+          g.connect(this.master);
+          n.start(t);
+          n.stop(t + dur + 0.02);
+        },
+
+        /** 激光音效：方波从 2400Hz 急速下坠 */
+        laser: function (t, vel) {
+          vel = vel == null ? 1 : vel;
+          var c = this.ctx;
+          var o = c.createOscillator();
+          o.type = "square";
+          o.frequency.setValueAtTime(2400, t);
+          o.frequency.exponentialRampToValueAtTime(170, t + 0.17);
+          var g = c.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.13 * vel, t + 0.008);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.19);
+          o.connect(g);
+          g.connect(this.master);
+          o.start(t);
+          o.stop(t + 0.21);
+        },
+
+        /** 铃音：非谐波泛音叠加，金属光泽 */
+        bell: function (t, note, vel) {
+          vel = vel == null ? 1 : vel;
+          var c = this.ctx;
+          var f = this.mtof(note || 76);
+          var partials = [1, 2.76, 5.4, 8.93];
+          var weights = [1, 0.5, 0.26, 0.13];
+          for (var i = 0; i < partials.length; i++) {
+            var o = c.createOscillator();
+            var g = c.createGain();
+            o.type = "sine";
+            o.frequency.value = f * partials[i];
+            var life = 1.15 - i * 0.2;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(
+              0.13 * weights[i] * vel,
+              t + 0.005,
+            );
+            g.gain.exponentialRampToValueAtTime(0.0001, t + life);
+            o.connect(g);
+            g.connect(this.master);
+            o.start(t);
+            o.stop(t + life + 0.05);
+          }
+        },
+
+        /** 闪光音效：随机高频正弦短点 */
+        spark: function (t, vel) {
+          vel = vel == null ? 1 : vel;
+          var c = this.ctx;
+          var o = c.createOscillator();
+          o.type = "sine";
+          o.frequency.setValueAtTime(3200 + Math.random() * 1400, t);
+          var g = c.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.06 * vel, t + 0.004);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+          o.connect(g);
+          g.connect(this.master);
+          o.start(t);
+          o.stop(t + 0.11);
+        },
+
+        /* -------------------- 事件派发 -------------------- */
+
+        /**
+         * 按事件描述触发对应乐器
+         * @param {Object} e 事件对象 { i, note, dur, vowel, vel, open }
+         * @param {number} t 绝对音频时间
+         */
+        trigger: function (e, t) {
+          switch (e.i) {
+            case "kick":
+              this.kick(t, e.vel);
+              break;
+            case "snare":
+              this.snare(t, e.vel);
+              break;
+            case "hat":
+              this.hat(t, e.vel, e.open);
+              break;
+            case "clap":
+              this.clap(t, e.vel);
+              break;
+            case "tom":
+              this.tom(t, e.note, e.vel);
+              break;
+            case "bass":
+              this.bass(t, e.note, e.dur, e.vel);
+              break;
+            case "lead":
+              this.lead(t, e.note, e.dur, e.vel);
+              break;
+            case "voice":
+              this.voice(t, e.note, e.dur, e.vowel, e.vel);
+              break;
+            case "riser":
+              this.riser(t, e.dur, e.vel);
+              break;
+            case "laser":
+              this.laser(t, e.vel);
+              break;
+            case "bell":
+              this.bell(t, e.note, e.vel);
+              break;
+            case "spark":
+              this.spark(t, e.vel);
+              break;
+            default:
+              break;
+          }
+        },
+
+        /* -------------------- 步进调度 -------------------- */
+
+        /**
+         * 前瞻调度器：把 future window 内的步进全部安排好
+         * 每次唤醒最多推演 150ms，保证低延迟且不丢拍
+         */
+        _scheduler: function () {
+          if (!this.running) return;
+          var horizon = this.ctx.currentTime + 0.15;
+          while (this.nextStepTime < horizon) {
+            Game.onStep(this.step, this.nextStepTime);
+            this.nextStepTime += this.stepDuration();
+            this.step = (this.step + 1) % 16;
+          }
+        },
+
+        /** 启动步进器 */
+        start: function () {
+          if (!this.ctx || this.running) return;
+          this.running = true;
+          this.step = 0;
+          this.nextStepTime = this.ctx.currentTime + 0.08;
+          this.timer = setInterval(this._scheduler.bind(this), 25);
+        },
+
+        /** 停止步进器 */
+        stop: function () {
+          this.running = false;
+          if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+          }
+        },
+
+        /** 暂停 / 恢复（挂起整个音频上下文） */
+        pause: function () {
+          if (this.ctx && this.ctx.state === "running") this.ctx.suspend();
+        },
+        resume: function () {
+          if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
+        },
+      };
+
+      /* ============================================================
+   三、游戏状态与界面
+   ============================================================ */
+      var Game = {
+        /** 11 个角色槽位：每个存一个音效 id 或 null */
+        slots: [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+        ],
+
+        /** 每个槽位最近一次触发的音频时间（用于动画脉冲） */
+        lastHit: [-99, -99, -99, -99, -99, -99, -99, -99, -99, -99, -99],
+
+        /** DOM 缓存 */
+        els: {
+          app: null,
+          dancers: null,
+          library: null,
+          overlay: null,
+        },
+
+        /** 初始化界面结构 */
+        initUI: function () {
+          this.els.app = document.getElementById("app");
+          this.els.dancers = document.getElementById("dancers");
+          this.els.library = document.getElementById("library");
+          this.els.overlay = document.getElementById("overlay");
+
+          this.buildDancers();
+          this.buildLibrary();
+          this.bindControls();
+        },
+
+        /** 渲染 11 个角色 */
+        buildDancers: function () {
+          var frag = document.createDocumentFragment();
+          for (var i = 0; i < PALETTE.length; i++) {
+            var slot = document.createElement("div");
+            slot.className = "slot";
+            slot.dataset.index = String(i);
+            slot.style.setProperty("--c", PALETTE[i]);
+            /* 写入相对大小系数，.dancer 依据 --rel 缩放，还原参考图比例 */
+            slot.style.setProperty("--rel", String(REL[i]));
+            /* 写入帧宽高比，.dancer 依据 --ar 让宽度贴合角色轮廓 */
+            slot.style.setProperty("--ar", String(AR[i]));
+
+            /* 形象主体：序列帧模式用 .sprite 背景图，否则回落到内置 SVG 小人 */
+            var art;
+            if (SPRITE.enabled) {
+              art =
+                '<div class="sprite" style="--frames:' +
+                SPRITE.frames +
+                ";background-image:url(" +
+                SPRITE.sources[i] +
+                ')"></div>';
+            } else {
+              art = planetSVG(i);
+            }
+
+            slot.innerHTML =
+              '<div class="dancer">' +
+              '<div class="dancer__glow"></div>' +
+              art +
+              '<div class="badge"><span class="badge__dot"></span><span class="badge__txt"></span></div>' +
+              "</div>" +
+              '<div class="slot__hint">拖到此处</div>';
+
+            /* 点击已放置音效的角色 -> 移除 */
+            slot.addEventListener("click", function (e) {
+              var idx = parseInt(this.dataset.index, 10);
+              if (Game.slots[idx]) Game.removeSound(idx);
+            });
+
+            frag.appendChild(slot);
+          }
+          this.els.dancers.appendChild(frag);
+        },
+
+        /** 渲染音效库（按 4 个分类分组） */
+        buildLibrary: function () {
+          var html = "";
+          for (var ci = 0; ci < CATS.length; ci++) {
+            var cat = CATS[ci];
+            html += '<div class="lib__group" style="--gc:' + cat.raw + '">';
+            html += '<div class="lib__label">' + cat.label + "</div>";
+            html += '<div class="lib__row">';
+            for (var si = 0; si < SOUNDS.length; si++) {
+              var s = SOUNDS[si];
+              if (s.cat !== cat.key) continue;
+              html +=
+                '<div class="chip" data-id="' +
+                s.id +
+                '" style="--c:' +
+                cat.raw +
+                '">' +
+                '<div class="chip__art"><i></i><i></i><i></i><i></i></div>' +
+                '<div class="chip__name">' +
+                s.name +
+                "</div>" +
+                "</div>";
+            }
+            html += "</div></div>";
+          }
+          this.els.library.innerHTML = html;
+
+          /* 为每个 chip 绑定拖拽起点 */
+          var chips = this.els.library.querySelectorAll(".chip");
+          for (var k = 0; k < chips.length; k++) {
+            chips[k].addEventListener("pointerdown", Drag.onStart);
+          }
+        },
+
+        /** 绑定顶栏按钮与 BPM 滑块 */
+        bindControls: function () {
+          var self = this;
+
+          document
+            .getElementById("btnStart")
+            .addEventListener("click", function () {
+              AudioEngine.init();
+              if (!AudioEngine.ready) return;
+              AudioEngine.resume();
+              AudioEngine.start();
+              self.els.overlay.classList.add("overlay--hide");
+              self.els.app.classList.remove("is-paused");
+              document.getElementById("btnPlay").textContent = "暂停";
+              AnimationLoop.start();
+              /* 默认给一个开场组合，让用户立刻听到声音 */
+              self.autoDemo();
+            });
+
+          document
+            .getElementById("btnPlay")
+            .addEventListener("click", function () {
+              if (!AudioEngine.ready) return;
+              if (AudioEngine.running) {
+                /* 暂停：停掉调度器并挂起上下文，动画冻结 */
+                AudioEngine.stop();
+                AudioEngine.pause();
+                self.els.app.classList.add("is-paused");
+                this.textContent = "播放";
+              } else {
+                AudioEngine.resume();
+                AudioEngine.start();
+                self.els.app.classList.remove("is-paused");
+                this.textContent = "暂停";
+              }
+            });
+
+          document
+            .getElementById("btnClear")
+            .addEventListener("click", function () {
+              for (var i = 0; i < self.slots.length; i++)
+                self.removeSound(i, true);
+              self.syncLibrary();
+            });
+
+          document
+            .getElementById("btnRandom")
+            .addEventListener("click", function () {
+              self.randomize();
+            });
+
+          var range = document.getElementById("bpmRange");
+          var output = document.getElementById("bpmValue");
+          range.addEventListener("input", function () {
+            var v = parseInt(this.value, 10) || 110;
+            AudioEngine.bpm = v;
+            output.textContent = String(v);
+            /* 同步手臂摆动速度 */
+            document.documentElement.style.setProperty(
+              "--beat-dur",
+              (60 / v).toFixed(3) + "s",
+            );
+          });
+        },
+
+        /**
+         * 每个步进被调度器调用
+         * @param {number} step 步进 0~15
+         * @param {number} time 该步进的绝对音频时间
+         */
+        onStep: function (step, time) {
+          for (var i = 0; i < this.slots.length; i++) {
+            var id = this.slots[i];
+            if (!id) continue;
+            var sound = this.getSound(id);
+            if (!sound) continue;
+            var events = sound.events;
+            var hit = false;
+            for (var j = 0; j < events.length; j++) {
+              if (events[j].s === step) {
+                AudioEngine.trigger(events[j], time);
+                hit = true;
+              }
+            }
+            if (hit) this.lastHit[i] = time;
+          }
+        },
+
+        /** 按 id 查音效定义 */
+        getSound: function (id) {
+          for (var i = 0; i < SOUNDS.length; i++) {
+            if (SOUNDS[i].id === id) return SOUNDS[i];
+          }
+          return null;
+        },
+
+        /** 判断某音效是否已被某个角色占用 */
+        isUsed: function (id) {
+          for (var i = 0; i < this.slots.length; i++) {
+            if (this.slots[i] === id) return true;
+          }
+          return false;
+        },
+
+        /**
+         * 把音效放入指定槽位
+         * 规则：
+         * 1. 若该音效已被别的角色占用，先从原角色移除（保证同一音效只发声一次）
+         * 2. 若目标槽位已有音效，直接替换
+         */
+        placeSound: function (slotIndex, soundId) {
+          /* 边界校验：槽位下标必须落在当前角色数量范围内（11 个），
+             之前硬编码为 > 7 是 8 角色时期的历史遗留，会导致后 3 个角色无法放置音效 */
+          if (slotIndex < 0 || slotIndex >= this.slots.length) return;
+          var prevOwner = this.slots.indexOf(soundId);
+          if (prevOwner !== -1 && prevOwner !== slotIndex) {
+            this.slots[prevOwner] = null;
+            this.updateSlot(prevOwner);
+          }
+          this.slots[slotIndex] = soundId;
+          this.updateSlot(slotIndex, true);
+          this.syncLibrary();
+        },
+
+        /** 从槽位移除音效 */
+        removeSound: function (slotIndex, silent) {
+          if (this.slots[slotIndex] == null) return;
+          this.slots[slotIndex] = null;
+          this.updateSlot(slotIndex);
+          if (!silent) this.syncLibrary();
+        },
+
+        /**
+         * 刷新单个槽位的视觉表现
+         * @param {number} idx 槽位序号
+         * @param {boolean} pop 是否播放放置弹跳动画
+         */
+        updateSlot: function (idx, pop) {
+          var slotEl = this.els.dancers.children[idx];
+          if (!slotEl) return;
+          var id = this.slots[idx];
+          var sound = id ? this.getSound(id) : null;
+
+          if (sound) {
+            var cat = null;
+            for (var i = 0; i < CATS.length; i++) {
+              if (CATS[i].key === sound.cat) cat = CATS[i];
+            }
+            slotEl.classList.add("slot--active", "slot--filled");
+            /* 角色主色始终保留行星本色，不随音效分类改变 */
+            slotEl.style.setProperty("--c", PALETTE[idx]);
+            var badge = slotEl.querySelector(".badge");
+            var dot = badge.querySelector(".badge__dot");
+            var txt = badge.querySelector(".badge__txt");
+            txt.textContent = sound.name;
+            dot.style.background = cat ? cat.raw : "#fff";
+            dot.style.boxShadow = "0 0 8px " + (cat ? cat.raw : "#fff");
+            badge.style.borderColor = cat ? cat.raw : "#fff";
+
+            if (pop) {
+              /* 通过 class 触发关键帧动画：动画使用独立的 scale 属性，
+           不会与动画循环每帧写入的 transform 相互干扰 */
+              var dancer = slotEl.querySelector(".dancer");
+              dancer.classList.remove("dancer--pop");
+              void dancer.offsetWidth; /* 强制重排，确保同名动画可以重复播放 */
+              dancer.classList.add("dancer--pop");
+            }
+          } else {
+            slotEl.classList.remove(
+              "slot--active",
+              "slot--filled",
+              "slot--hover",
+            );
+            slotEl.style.setProperty("--c", PALETTE[idx]);
+          }
+        },
+
+        /** 刷新音效库中每个图标的可用状态 */
+        syncLibrary: function () {
+          var chips = this.els.library.querySelectorAll(".chip");
+          for (var i = 0; i < chips.length; i++) {
+            var id = chips[i].dataset.id;
+            if (this.isUsed(id)) chips[i].classList.add("chip--used");
+            else chips[i].classList.remove("chip--used");
+          }
+        },
+
+        /** 开场示范组合：先放入鼓点与贝斯，用户点一下就有音乐 */
+        autoDemo: function () {
+          this.placeSound(0, "b-nova");
+          this.placeSound(4, "m-glide");
+          this.syncLibrary();
+        },
+
+        /**
+         * 随机编排：先保证各分类声部均衡（每类 1~2 个），
+         * 再从未选中的音效中随机补足，直到填满全部 11 个槽位。
+         * 处理边界：
+         *   1) 某分类下无音效时跳过该分类，不影响其它分类取样；
+         *   2) 音效总数少于槽位数时，最多填到音效总数，不会越界；
+         *   3) 补足时从剩余池中取，天然去重，不会出现重复音效。
+         */
+        randomize: function () {
+          for (var i = 0; i < this.slots.length; i++) this.slots[i] = null;
+
+          var chosen = [];
+          /* 记录已选中的音效 id，补足阶段用于去重 */
+          var usedMap = {};
+
+          /* 第一步：按分类均衡取样，每类 1~2 个 */
+          for (var ci = 0; ci < CATS.length; ci++) {
+            var pool = [];
+            for (var si = 0; si < SOUNDS.length; si++) {
+              if (SOUNDS[si].cat === CATS[ci].key) pool.push(SOUNDS[si].id);
+            }
+            if (!pool.length) continue; /* 边界 1：空分类跳过 */
+            /* 每类随机挑 1 个，额外有 55% 概率再挑 1 个 */
+            var want = Math.random() < 0.55 ? 2 : 1;
+            for (var w = 0; w < want && pool.length; w++) {
+              var pick = Math.floor(Math.random() * pool.length);
+              var picked = pool.splice(pick, 1)[0];
+              chosen.push(picked);
+              usedMap[picked] = true;
+            }
+          }
+
+          /* 第二步：若不足 11 个，从剩余音效中随机补足 */
+          if (chosen.length < this.slots.length) {
+            var rest = [];
+            for (var ri = 0; ri < SOUNDS.length; ri++) {
+              if (!usedMap[SOUNDS[ri].id]) rest.push(SOUNDS[ri].id);
+            }
+            while (chosen.length < this.slots.length && rest.length) {
+              var rp = Math.floor(Math.random() * rest.length);
+              var rpick = rest.splice(rp, 1)[0];
+              chosen.push(rpick);
+              usedMap[rpick] = true;
+            }
+          }
+
+          /* 第三步：打乱顺序，避免高音/低音扎堆在固定位置 */
+          for (var k = chosen.length - 1; k > 0; k--) {
+            var r = Math.floor(Math.random() * (k + 1));
+            var tmp = chosen[k];
+            chosen[k] = chosen[r];
+            chosen[r] = tmp;
+          }
+
+          /* 第四步：填入全部槽位（chosen 已补足到 11 个，边界 2/3 也已覆盖） */
+          for (var m = 0; m < chosen.length && m < this.slots.length; m++) {
+            this.slots[m] = chosen[m];
+          }
+          for (var n = 0; n < this.slots.length; n++) this.updateSlot(n, true);
+          this.syncLibrary();
+        },
+      };
+
+      /* ============================================================
+   四、拖拽交互
+   ------------------------------------------------------------
+   使用 Pointer Events 统一处理鼠标与触摸，
+   比 HTML5 原生 drag&drop 更可控，也避免了移动端的兼容问题。
+   ============================================================ */
+      var Drag = {
+        active: false,
+        soundId: null,
+        ghost: null,
+        hoverSlot: null,
+
+        /** 按下音效图标：创建跟随指针的幽灵元素 */
+        onStart: function (e) {
+          var id = this.dataset.id;
+          if (!id || Game.isUsed(id)) return;
+          if (e.button != null && e.button !== 0) return;
+
+          e.preventDefault();
+
+          Drag.active = true;
+          Drag.soundId = id;
+
+          var ghost = this.cloneNode(true);
+          ghost.classList.add("chip--ghost");
+          ghost.classList.remove("chip--used");
+          ghost.style.setProperty(
+            "--c",
+            getComputedStyle(this).getPropertyValue("--c").trim() || "#fff",
+          );
+          document.body.appendChild(ghost);
+          Drag.ghost = ghost;
+
+          Drag.moveGhost(e.clientX, e.clientY);
+
+          document.addEventListener("pointermove", Drag.onMove, {
+            passive: false,
+          });
+          document.addEventListener("pointerup", Drag.onEnd);
+          document.addEventListener("pointercancel", Drag.onEnd);
+        },
+
+        /** 让幽灵元素跟随指针居中 */
+        moveGhost: function (x, y) {
+          if (!Drag.ghost) return;
+          Drag.ghost.style.left = x + "px";
+          Drag.ghost.style.top = y + "px";
+        },
+
+        /** 指针移动：更新幽灵位置并高亮命中的槽位 */
+        onMove: function (e) {
+          if (!Drag.active) return;
+          e.preventDefault();
+          Drag.moveGhost(e.clientX, e.clientY);
+
+          var slot = Drag.slotAt(e.clientX, e.clientY);
+          if (slot !== Drag.hoverSlot) {
+            if (Drag.hoverSlot) Drag.hoverSlot.classList.remove("slot--hover");
+            Drag.hoverSlot = slot;
+            if (slot) slot.classList.add("slot--hover");
+          }
+        },
+
+        /** 根据坐标查找角色槽位（跨浏览器兼容兜底） */
+        slotAt: function (x, y) {
+          var el = document.elementFromPoint(x, y);
+          if (!el || !el.closest) return null;
+          return el.closest(".slot");
+        },
+
+        /** 抬起指针：命中则放置，否则取消 */
+        onEnd: function (e) {
+          if (!Drag.active) return;
+
+          var slot = Drag.slotAt(e.clientX, e.clientY);
+          if (slot && Drag.soundId) {
+            Game.placeSound(parseInt(slot.dataset.index, 10), Drag.soundId);
+          }
+          Drag.cleanup();
+        },
+
+        /** 清理拖拽状态 */
+        cleanup: function () {
+          if (Drag.hoverSlot) Drag.hoverSlot.classList.remove("slot--hover");
+          if (Drag.ghost && Drag.ghost.parentNode)
+            Drag.ghost.parentNode.removeChild(Drag.ghost);
+          Drag.ghost = null;
+          Drag.hoverSlot = null;
+          Drag.soundId = null;
+          Drag.active = false;
+          document.removeEventListener("pointermove", Drag.onMove);
+          document.removeEventListener("pointerup", Drag.onEnd);
+          document.removeEventListener("pointercancel", Drag.onEnd);
+        },
+      };
+
+      /* ============================================================
+   五、动画与可视化
+   ============================================================ */
+      var AnimationLoop = {
+        raf: null,
+        vizCtx: null,
+        vizCanvas: null,
+        freqData: null,
+
+        start: function () {
+          if (this.raf) return;
+          this.vizCanvas = document.getElementById("viz");
+          this.vizCtx = this.vizCanvas.getContext("2d");
+          this.resize();
+          window.addEventListener("resize", this.resize.bind(this));
+          this.tick();
+        },
+
+        /** 处理画布尺寸与设备像素比，避免高分屏发虚 */
+        resize: function () {
+          if (!this.vizCanvas) return;
+          var dpr = Math.min(window.devicePixelRatio || 1, 2);
+          var rect = this.vizCanvas.getBoundingClientRect();
+          this.vizCanvas.width = Math.max(1, Math.floor(rect.width * dpr));
+          this.vizCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
+          this.vizCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        },
+
+        /** 每帧主循环 */
+        tick: function () {
+          AnimationLoop.raf = requestAnimationFrame(AnimationLoop.tick);
+          AnimationLoop.updateDancers();
+          AnimationLoop.drawViz();
+        },
+
+        /**
+         * 根据音频时钟驱动小人跳动
+         * 说明：
+         * - 未放置音效的角色做轻微呼吸；已放置的跟随节拍律动
+         * - 触发瞬间叠加一次指数衰减的脉冲，让动作与声音强关联
+         */
+        updateDancers: function () {
+          /* 未运行（暂停或尚未开始）时，把角色复位到自然站立姿态 */
+          if (!AudioEngine.ctx || !AudioEngine.running) {
+            var kids = Game.els.dancers.children;
+            for (var k = 0; k < kids.length; k++) {
+              var d0 = kids[k].querySelector(".dancer");
+              if (d0 && d0.style.transform) d0.style.transform = "";
+            }
+            return;
+          }
+
+          var now = AudioEngine.ctx.currentTime;
+          var beatDur = 60 / AudioEngine.bpm;
+          var phase = (((now / beatDur) % 1) + 1) % 1;
+          var bounceEnv = Math.pow(1 - phase, 2.4);
+
+          var children = Game.els.dancers.children;
+          for (var i = 0; i < children.length; i++) {
+            var slotEl = children[i];
+            var dancer = slotEl.querySelector(".dancer");
+            if (!dancer) continue;
+
+            var hitAgo = now - Game.lastHit[i];
+            var pulse = 0;
+            if (hitAgo >= 0 && hitAgo < 0.28) {
+              pulse = Math.exp(-hitAgo * 13);
+            }
+
+            var hasSound = !!Game.slots[i];
+            var amp = hasSound ? 1 : 0.3;
+            var lift = bounceEnv * 7 * amp + pulse * 5;
+            var sq = 1 + bounceEnv * 0.045 * amp + pulse * 0.09;
+
+            dancer.style.transform =
+              "translateY(" +
+              (-lift).toFixed(2) +
+              "px) scale(" +
+              (1 / sq).toFixed(3) +
+              "," +
+              sq.toFixed(3) +
+              ")";
+
+            /* 发声瞬间把角色光晕点亮 */
+            if (
+              pulse > 0.15 &&
+              !slotEl.classList.contains("slot--active") &&
+              hasSound
+            ) {
+              slotEl.classList.add("slot--active");
+            }
+
+            /* 序列帧模式：按拍推进帧序号，实现与鼓点同步的动作循环 */
+            if (SPRITE.enabled) {
+              var spriteEl = dancer.querySelector(".sprite");
+              if (spriteEl) {
+                /* 有音效的角色每拍走完一轮；空闲角色放慢到每 4 拍一轮 */
+                var cycles = hasSound ? 1 : 4;
+                var sp = (((now / (beatDur * cycles)) % 1) + 1) % 1;
+                var frame = Math.floor(sp * SPRITE.frames);
+                if (frame >= SPRITE.frames) frame = SPRITE.frames - 1;
+                if (spriteEl.dataset.frame !== String(frame)) {
+                  spriteEl.dataset.frame = String(frame);
+                  /* 横向精灵图：0% 为第 1 帧，100% 为最后一帧 */
+                  var posX =
+                    SPRITE.frames > 1 ? (frame / (SPRITE.frames - 1)) * 100 : 0;
+                  spriteEl.style.backgroundPosition = posX + "% 50%";
+                }
+              }
+            }
+          }
+        },
+
+        /** 绘制底部频谱线条 */
+        drawViz: function () {
+          var ctx = this.vizCtx;
+          if (!ctx) return;
+          var rect = this.vizCanvas.getBoundingClientRect();
+          var w = rect.width;
+          var h = rect.height;
+
+          ctx.clearRect(0, 0, w, h);
+
+          if (!AudioEngine.ready || !AudioEngine.running) return;
+
+          var analyser = AudioEngine.analyser;
+          if (
+            !this.freqData ||
+            this.freqData.length !== analyser.frequencyBinCount
+          ) {
+            this.freqData = new Uint8Array(analyser.frequencyBinCount);
+          }
+          analyser.getByteFrequencyData(this.freqData);
+
+          var bars = 64;
+          var step = Math.floor(this.freqData.length / bars);
+          var barW = w / bars;
+
+          for (var i = 0; i < bars; i++) {
+            var v = 0;
+            for (var j = 0; j < step; j++)
+              v += this.freqData[i * step + j] || 0;
+            v = v / step / 255;
+            var bh = Math.pow(v, 1.4) * h * 0.55;
+            if (bh < 1) continue;
+
+            var x = i * barW;
+            var hue = 265 - (i / bars) * 130;
+            ctx.fillStyle = "hsla(" + hue + ", 92%, 68%, 0.55)";
+            ctx.fillRect(x + barW * 0.18, h - bh, barW * 0.64, bh);
+          }
+        },
+      };
+
+      /* ============================================================
+   五之二、宇宙星空背景
+   ------------------------------------------------------------
+   一次性在画布上绘制静态星点（含少量带十字光芒的亮星），
+   星云的光雾由 body::before 的 CSS 渐变负责，二者叠加成深空。
+   ============================================================ */
+      var Space = {
+        canvas: null,
+        ctx: null,
+        stars: [],
+
+        /** 初始化画布并监听窗口尺寸变化 */
+        init: function () {
+          this.canvas = document.getElementById("space");
+          if (!this.canvas || !this.canvas.getContext) return;
+          this.ctx = this.canvas.getContext("2d");
+          this.resize();
+          window.addEventListener("resize", this.resize.bind(this));
+        },
+
+        /** 按视口尺寸与像素比重建画布，避免高分屏发虚 */
+        resize: function () {
+          var dpr = Math.min(window.devicePixelRatio || 1, 2);
+          var w = window.innerWidth;
+          var h = window.innerHeight;
+          this.canvas.width = Math.max(1, Math.floor(w * dpr));
+          this.canvas.height = Math.max(1, Math.floor(h * dpr));
+          this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          this.build(w, h);
+          this.draw();
+        },
+
+        /**
+         * 生成星点
+         * @param {number} w 视口宽
+         * @param {number} h 视口高
+         * 密度按面积换算，并设上限，防止超大屏绘制过多星点
+         */
+        build: function (w, h) {
+          var count = Math.min(380, Math.round((w * h) / 4000));
+          var stars = [];
+          for (var i = 0; i < count; i++) {
+            stars.push({
+              x: Math.random() * w,
+              y: Math.random() * h,
+              r: Math.random() * 1.35 + 0.4,
+              a: Math.random() * 0.62 + 0.3,
+              big: Math.random() < 0.08,
+            });
+          }
+          this.stars = stars;
+        },
+
+        /** 绘制星点与亮星光芒 */
+        draw: function () {
+          var ctx = this.ctx;
+          var w = window.innerWidth;
+          var h = window.innerHeight;
+          ctx.clearRect(0, 0, w, h);
+
+          for (var i = 0; i < this.stars.length; i++) {
+            var s = this.stars[i];
+            ctx.globalAlpha = s.a;
+            ctx.fillStyle = s.big ? "#cfe4ff" : "#ffffff";
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fill();
+
+            /* 亮星附加十字光芒 */
+            if (s.big) {
+              var len = s.r * 6;
+              ctx.globalAlpha = 0.34;
+              ctx.strokeStyle = "#cfe4ff";
+              ctx.lineWidth = 0.8;
+              ctx.beginPath();
+              ctx.moveTo(s.x - len, s.y);
+              ctx.lineTo(s.x + len, s.y);
+              ctx.moveTo(s.x, s.y - len);
+              ctx.lineTo(s.x, s.y + len);
+              ctx.stroke();
+            }
+          }
+          ctx.globalAlpha = 1;
+        },
+      };
+
+      /* ============================================================
+   六、启动
+   ============================================================ */
+      Space.init();
+      Game.initUI();
+    </script>
+  </body>
+</html>
